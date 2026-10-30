@@ -1,3 +1,4 @@
+
 import json
 import logging
 
@@ -5,7 +6,11 @@ from django.contrib.auth import login, logout, authenticate
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 
-from .restapis import get_request
+from .restapis import (
+    get_request,
+    post_review,
+    analyze_review_sentiments
+)
 from .models import CarMake, CarModel
 
 logger = logging.getLogger(__name__)
@@ -71,3 +76,35 @@ def get_car_models(request, make_id):
         for model in models
     ]
     return JsonResponse(data, safe=False)
+
+
+@csrf_exempt
+def add_review(request):
+    if request.method != 'POST':
+        return JsonResponse(
+            {"error": "POST method required"},
+            status=405
+        )
+
+    try:
+        data = json.loads(request.body)
+        review_text = data.get('review', '')
+
+        if not review_text:
+            return JsonResponse(
+                {"error": "Review text is required"},
+                status=400
+            )
+
+        sentiment = analyze_review_sentiments(review_text)
+        data['sentiment'] = sentiment
+
+        result = post_review(data)
+        return JsonResponse(result, safe=False)
+
+    except Exception as error:
+        logger.error("Review submission error: %s", error)
+        return JsonResponse(
+            {"error": "Unable to submit review"},
+            status=500
+        )
